@@ -14,6 +14,10 @@
 NS_LOG_COMPONENT_DEFINE("SCREAM_EXAMPLE");
 using namespace ns3;
 using namespace std;
+const bool ENABLE_MANDATORY_LOSS = false;
+const bool ENABLE_TCP = false;
+const bool ENABLE_MULTIPLE_FLOW = false;
+const bool ENABLE_CHANGE_BW = false;
 const uint32_t TOPO_DEFAULT_BW     = 2000000;    // in bps: 1Mbps
 const uint32_t TOPO_DEFAULT_PDELAY =      100;    // in ms:   50ms
 const uint32_t TOPO_DEFAULT_QDELAY =     300;    // in ms:  300ms
@@ -91,13 +95,15 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
     // disable tc for now, some bug in ns3 causes extra delay
     TrafficControlHelper tch;
     tch.Uninstall (devices);
-
-	std::string errorModelType = "ns3::RateErrorModel";
-  	ObjectFactory factory;
-  	factory.SetTypeId (errorModelType);
-  	Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
-	devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));	
-    return nodes;
+    if(ENABLE_MANDATORY_LOSS)
+    {
+	    std::string errorModelType = "ns3::RateErrorModel";
+  	    ObjectFactory factory;
+  	    factory.SetTypeId (errorModelType);
+  	    Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
+	    devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));	
+        return nodes;
+    }
 }
 static void InstallScream(
                          Ptr<Node> sender,
@@ -180,20 +186,28 @@ int main(int argc, char *argv[])
 	MyTracer screamTracer1;
 	screamTracer1.OpenTraceFile(scream1);
     InstallScream(nodes.Get (0), nodes.Get (1),servPort,appStart,appStop,&screamTracer1);
+    if (ENABLE_MULTIPLE_FLOW)
+    {
+        std::string scream2 = std::string("scream2");
+        MyTracer screamTracer2;
+        screamTracer2.OpenTraceFile(scream2);
+        InstallScream(nodes.Get(0), nodes.Get(1), servPort + 1, 40, appStop, &screamTracer2);
 
-	/*std::string scream2=std::string("scream2");
-	MyTracer screamTracer2;
-	screamTracer2.OpenTraceFile(scream2);
-    InstallScream(nodes.Get (0), nodes.Get (1),servPort+1,40,appStop,&screamTracer2);
-
-	std::string scream3=std::string("scream3");
-	MyTracer screamTracer3;
-	screamTracer3.OpenTraceFile(scream3);
-    InstallScream(nodes.Get (0), nodes.Get (1),servPort+2,80,appStop,&screamTracer3);*/
-    //InstallTcp(nodes.Get (0), nodes.Get (1),tcpServPort,20,100);
-    //Ptr<NetDevice> netDevice=nodes.Get(0)->GetDevice(0);
-	//ChangeBw change(netDevice);
-	//change.Start();
+        std::string scream3 = std::string("scream3");
+        MyTracer screamTracer3;
+        screamTracer3.OpenTraceFile(scream3);
+        InstallScream(nodes.Get(0), nodes.Get(1), servPort + 2, 80, appStop, &screamTracer3);
+    }
+    if (ENABLE_TCP)
+    {
+        InstallTcp(nodes.Get (0), nodes.Get (1),tcpServPort,20,100);
+    }
+    if (ENABLE_CHANGE_BW)
+    {
+        Ptr<NetDevice> netDevice = nodes.Get(0)->GetDevice(0);
+        ChangeBw change(netDevice);
+        change.Start();
+    }
     Simulator::Stop (Seconds(simDuration + 10.0));
     Simulator::Run ();
     Simulator::Destroy();

@@ -46,6 +46,10 @@
 #include "ns3/log.h"
 #include "ns3/mytrace.h"
 #include <string>
+const bool ENABLE_MANDATORY_LOSS = false;
+const bool ENABLE_TCP = false;
+const bool ENABLE_MULTIPLE_FLOW = false;
+const bool ENABLE_CHANGE_BW = false;
 const uint32_t RMCAT_DEFAULT_RMIN  =  150000;  // in bps: 150Kbps
 const uint32_t RMCAT_DEFAULT_RMAX  = 3000000;  // in bps: 1.5Mbps
 const uint32_t RMCAT_DEFAULT_RINIT =  150000;  // in bps: 150Kbps
@@ -129,12 +133,13 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
     // disable tc for now, some bug in ns3 causes extra delay
     TrafficControlHelper tch;
     tch.Uninstall (devices);
-
-	std::string errorModelType = "ns3::RateErrorModel";
-  	ObjectFactory factory;
-  	factory.SetTypeId (errorModelType);
-  	Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
-	devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));	
+    if(ENABLE_MANDATORY_LOSS){
+	    std::string errorModelType = "ns3::RateErrorModel";
+  	    ObjectFactory factory;
+  	    factory.SetTypeId (errorModelType);
+  	    Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
+	    devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));	
+    }
     return nodes;
 }
 
@@ -277,22 +282,30 @@ int main (int argc, char *argv[])
 	nadaTracer1.OpenTraceFile(nadafile1);
     InstallNADA(nada, nodes.Get (0), nodes.Get (1), port,
                      initBw, minBw, maxBw, 0.0, endTime,&nadaTracer1);
+    if (ENABLE_MULTIPLE_FLOW)
+    {
+        std::string nadafile2 = std::string("nada2");
+        MyTracer nadaTracer2;
+        nadaTracer2.OpenTraceFile(nadafile2);
+        InstallNADA(nada, nodes.Get(0), nodes.Get(1), port + 1,
+                    initBw, minBw, maxBw, 40.0, endTime, &nadaTracer2);
 
-	/*std::string nadafile2=std::string("nada2");
-	MyTracer nadaTracer2;
-	nadaTracer2.OpenTraceFile(nadafile2);
-    InstallNADA(nada, nodes.Get (0), nodes.Get (1), port+1,
-                     initBw, minBw, maxBw, 40.0, endTime,&nadaTracer2);
-
-	std::string nadafile3=std::string("nada3");
-	MyTracer nadaTracer3;
-	nadaTracer3.OpenTraceFile(nadafile3);
-    InstallNADA(nada, nodes.Get (0), nodes.Get (1), port+2,
-                     initBw, minBw, maxBw, 80.0, endTime,&nadaTracer3);
-    //InstallTCP(nodes.Get (0), nodes.Get (1),tcpServPort,20,100);
-   // Ptr<NetDevice> netDevice=nodes.Get(0)->GetDevice(0);
-	//ChangeBw change(netDevice);
-	//change.Start();*/
+        std::string nadafile3 = std::string("nada3");
+        MyTracer nadaTracer3;
+        nadaTracer3.OpenTraceFile(nadafile3);
+        InstallNADA(nada, nodes.Get(0), nodes.Get(1), port + 2,
+                    initBw, minBw, maxBw, 80.0, endTime, &nadaTracer3);
+    }
+    if (ENABLE_TCP)
+    {
+        InstallTCP(nodes.Get(0), nodes.Get(1), tcpServPort, 20, 100);
+    }
+    if (ENABLE_CHANGE_BW)
+    {
+        Ptr<NetDevice> netDevice = nodes.Get(0)->GetDevice(0);
+        ChangeBw change(netDevice);
+        change.Start();
+    }
     Simulator::Stop (Seconds (endTime));
     Simulator::Run ();
     Simulator::Destroy ();

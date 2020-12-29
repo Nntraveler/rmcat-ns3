@@ -15,6 +15,10 @@
 using namespace ns3;
 using namespace std;
 NS_LOG_COMPONENT_DEFINE ("Webrtc-Tcp");
+const bool ENABLE_MANDATORY_LOSS = false;
+const bool ENABLE_TCP = false;
+const bool ENABLE_MULTIPLE_FLOW = false;
+const bool ENABLE_CHANGE_BW = false;
 const uint32_t TOPO_DEFAULT_BW     = 3000000;    // in bps: 1Mbps
 const uint32_t TOPO_DEFAULT_PDELAY =      100;    // in ms:   50ms
 const uint32_t TOPO_DEFAULT_QDELAY =     300;    // in ms:  300ms
@@ -93,12 +97,15 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
     TrafficControlHelper tch;
     tch.Uninstall (devices);
 
-	/* //add random loss
-	std::string errorModelType = "ns3::RateErrorModel";
-  	ObjectFactory factory;
-  	factory.SetTypeId (errorModelType);
-  	Ptr<ErrorModel> em = factory.Create<ErrorModel> ();
-	devices.Get (1)->SetAttribute ("ReceiveErrorModel", PointerValue (em));*/
+	//add random loss
+    if (ENABLE_MANDATORY_LOSS)
+    {
+        std::string errorModelType = "ns3::RateErrorModel";
+        ObjectFactory factory;
+        factory.SetTypeId(errorModelType);
+        Ptr<ErrorModel> em = factory.Create<ErrorModel>();
+        devices.Get(1)->SetAttribute("ReceiveErrorModel", PointerValue(em));
+    }
     return nodes;
 }
 
@@ -230,23 +237,30 @@ int main(int argc, char *argv[])
 	WebrtcTrace trace1;
 	trace1.Log(log,WebrtcTraceEnable::E_WEBRTC_ALL);
     InstallWebrtc(nodes.Get (0), nodes.Get (1),servPort,appStart,appStop,linkBw,&trace1);
+    if (ENABLE_MULTIPLE_FLOW)
+    {
+        log = instance + "_webrtc_" + std::to_string(test_pair);
+        test_pair++;
+        WebrtcTrace trace2;
+        trace2.Log(log, WebrtcTraceEnable::E_WEBRTC_ALL);
+        InstallWebrtc(nodes.Get(0), nodes.Get(1), servPort + 1, appStart + 40, appStop, linkBw, &trace2);
 
-    log=instance+"_webrtc_"+std::to_string(test_pair);
-    test_pair++;
-	WebrtcTrace trace2;
-	trace2.Log(log,WebrtcTraceEnable::E_WEBRTC_ALL);
-    InstallWebrtc(nodes.Get (0), nodes.Get (1),servPort+1,appStart+40,appStop,linkBw,&trace2);
-
-    log=instance+"_webrtc_"+std::to_string(test_pair);
-    test_pair++;
-	WebrtcTrace trace3;
-	trace3.Log(log,WebrtcTraceEnable::E_WEBRTC_ALL);
-    InstallWebrtc(nodes.Get (0), nodes.Get (1),servPort+2,appStart+80,appStop,linkBw,&trace3);
-
-    //InstallTcp(nodes.Get (0), nodes.Get (1),tcpServPort,20,100);
-   // Ptr<NetDevice> netDevice=nodes.Get(0)->GetDevice(0);
-//	ChangeBw change(netDevice);
-//	change.Start();
+        log = instance + "_webrtc_" + std::to_string(test_pair);
+        test_pair++;
+        WebrtcTrace trace3;
+        trace3.Log(log, WebrtcTraceEnable::E_WEBRTC_ALL);
+        InstallWebrtc(nodes.Get(0), nodes.Get(1), servPort + 2, appStart + 80, appStop, linkBw, &trace3);
+    }
+    if (ENABLE_TCP)
+    {
+        InstallTcp(nodes.Get(0), nodes.Get(1), tcpServPort, 20, 100);
+    }
+    if (ENABLE_CHANGE_BW)
+    {
+        Ptr<NetDevice> netDevice = nodes.Get(0)->GetDevice(0);
+        ChangeBw change(netDevice);
+        change.Start();
+    }
     Simulator::Stop (Seconds(simDuration + 10.0));
     Simulator::Run ();
     Simulator::Destroy();	
